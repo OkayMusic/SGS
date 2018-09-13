@@ -3,10 +3,15 @@ import thread
 import threading
 import time
 import random
+import hashlib
+import os
 
 
 class SprongleGameServer(object):
-    # good morning and welcome to my UDP server, have a nice morning
+    """   
+    good morning and welcome to my UDP server, have a nice morning
+    """
+
     ACK = "ACK: "
 
     def __init__(self, IP, port):
@@ -81,6 +86,42 @@ class SprongleGameServer(object):
             reply = "Invalid Content header"
             self.send(addr, reply)
 
+    def handle_accountcreation(self, addr, payload):
+        """
+        Deals with account creation on the server.
+        """
+        def create_user(headers, values):
+            """
+            Checks too see if the ID requested by the user is unique. If it is,
+            a new account is made for the user.
+            """
+            username = values[headers.index("username")]
+            email = values[headers.index("email")]
+            password = values[headers.index("password")]
+            salt = values[headers.index("salt")]
+
+            if os.path.exists("data/users/" + values[0]):
+                return False
+            else:
+                with open("data/users/" + values[0]) as user_file:
+                    user_file.write("username: " + username)
+                    user_file.write("email: " + email)
+                    user_file.write("password: " + password)
+                    user_file.write("salt: " + salt)
+
+        headers = ["username", "email", "password", "salt"]
+        values = self.parse_payload(addr, payload, headers)
+
+        if create_user(headers, values):
+            reply = "success: true"
+            self.send(addr, reply)
+        else:
+            reply = "success: false"
+            self.send(addr, reply)
+
+    def handle_loginauthentication(self, addr, payload):
+        pass
+
     def send(self, addr, message):
         """
         Send a message to the client, without waiting for a response/ACK from
@@ -94,6 +135,23 @@ class SprongleGameServer(object):
         the message is resent until an ACK is received. 
         """
         pass
+
+    def parse_payload(self, addr, payload, headers):
+        """
+        Parse the payload of a message looking for our required custom
+        header fields and their corresponding field values. Returns an ordered
+        list of field values such that headers[i]'s field value is value[i].
+        """
+        values = [None for x in range(len(headers))]
+
+        if len(headers) != len(payload):
+            reply = "Invalid request, payload improperly formatted."
+            self.send(addr, reply)
+
+        for lines in payload:
+            values[headers.index(lines[0])] = lines[1]
+
+        return values
 
 
 if __name__ == "__main__":
